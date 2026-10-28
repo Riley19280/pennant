@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Laravel\Pennant\Feature;
 use Tests\TestCase;
+use Workbench\App\Features\NewApi;
 
 class PurgeCommandTest extends TestCase
 {
@@ -204,5 +205,79 @@ class PurgeCommandTest extends TestCase
         $this->artisan('pennant:purge --except-registered')->expectsOutputToContain('bar, baz successfully purged from storage.');
 
         $this->assertSame(['foo'], DB::table('features')->pluck('name')->all());
+    }
+
+    public function test_it_does_not_purge_unresolved_feature_classes_when_excepting_registered()
+    {
+        Feature::define('foo', fn () => true);
+        DB::table('features')->insert([
+            'name' => 'foo',
+            'scope' => 'Tim',
+            'value' => true,
+            'created_at' => now()->toDateTimeString(),
+            'updated_at' => now()->toDateTimeString(),
+        ]);
+        DB::table('features')->insert([
+            'name' => NewApi::class,
+            'scope' => 'Tim',
+            'value' => true,
+            'created_at' => now()->toDateTimeString(),
+            'updated_at' => now()->toDateTimeString(),
+        ]);
+        DB::table('features')->insert([
+            'name' => 'bar',
+            'scope' => 'Tim',
+            'value' => true,
+            'created_at' => now()->toDateTimeString(),
+            'updated_at' => now()->toDateTimeString(),
+        ]);
+
+        $this->artisan('pennant:purge --except-registered')->expectsOutputToContain('bar successfully purged from storage.');
+
+        $this->assertSame([NewApi::class, 'foo'], DB::table('features')->orderBy('name')->pluck('name')->all());
+    }
+
+    public function test_it_does_not_purge_feature_classes_when_excepting_registered_with_nothing_defined()
+    {
+        DB::table('features')->insert([
+            'name' => NewApi::class,
+            'scope' => 'Tim',
+            'value' => true,
+            'created_at' => now()->toDateTimeString(),
+            'updated_at' => now()->toDateTimeString(),
+        ]);
+        DB::table('features')->insert([
+            'name' => 'bar',
+            'scope' => 'Tim',
+            'value' => true,
+            'created_at' => now()->toDateTimeString(),
+            'updated_at' => now()->toDateTimeString(),
+        ]);
+
+        $this->artisan('pennant:purge --except-registered')->expectsOutputToContain('bar successfully purged from storage.');
+
+        $this->assertSame([NewApi::class], DB::table('features')->pluck('name')->all());
+    }
+
+    public function test_it_does_not_purge_feature_classes_passed_as_arguments_when_excepting_registered()
+    {
+        DB::table('features')->insert([
+            'name' => NewApi::class,
+            'scope' => 'Tim',
+            'value' => true,
+            'created_at' => now()->toDateTimeString(),
+            'updated_at' => now()->toDateTimeString(),
+        ]);
+        DB::table('features')->insert([
+            'name' => 'bar',
+            'scope' => 'Tim',
+            'value' => true,
+            'created_at' => now()->toDateTimeString(),
+            'updated_at' => now()->toDateTimeString(),
+        ]);
+
+        $this->artisan('pennant:purge', ['features' => [NewApi::class, 'bar'], '--except-registered' => true])->expectsOutputToContain('bar successfully purged from storage.');
+
+        $this->assertSame([NewApi::class], DB::table('features')->pluck('name')->all());
     }
 }

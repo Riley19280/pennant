@@ -3,6 +3,8 @@
 namespace Laravel\Pennant\Commands;
 
 use Illuminate\Console\Command;
+use Laravel\Pennant\Contracts\CanListStoredFeatures;
+use Laravel\Pennant\Drivers\Decorator;
 use Laravel\Pennant\FeatureManager;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -45,6 +47,10 @@ class PurgeCommand extends Command
 
         $features = $this->argument('features') ?: null;
 
+        if ($this->option('except-registered')) {
+            $this->registerFeatureClasses($store, $features);
+        }
+
         $except = collect($this->option('except'))
             ->when($this->option('except-registered'), fn ($except) => $except->merge($store->defined()))
             ->unique()
@@ -70,5 +76,21 @@ class PurgeCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Register any class based features that have not been resolved yet.
+     *
+     * @param  Decorator  $store
+     * @param  array<string>|null  $features
+     * @return void
+     */
+    protected function registerFeatureClasses($store, $features)
+    {
+        if ($features === null && ! $store->getDriver() instanceof CanListStoredFeatures) {
+            return;
+        }
+
+        collect($features ?? $store->stored())->each(fn ($feature) => $store->name($feature));
     }
 }
